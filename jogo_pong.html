@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pong (1972)</title>
+  <!-- p5.js via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+  <style>
+    body { margin: 0; background:#111; color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    .wrap { display:flex; flex-direction:column; align-items:center; gap:8px; padding:16px; }
+    canvas { outline: 1px solid #333; }
+    .hint { opacity:.8; font-size:14px; }
+    h1 { margin: 8px 0 0; }
+    .centerMsg { position:absolute; left:0; right:0; top:0; bottom:0; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Pong (1972)</h1>
+    <div class="hint">Controles: W/S (esquerda) e ↑/↓ (direita). Pressione R para reiniciar.</div>
+  </div>
+  <div id="overlay" class="centerMsg" style="display:none;"><div id="overlayText" style="text-align:center; font-size:32px; line-height:1.4"></div></div>
+
+  <script>
+    // ----- Configurações básicas -----
+    const W = 800;
+    const H = 480;
+
+    const PADDLE_W = 14;
+    const PADDLE_H = 90;
+    const BALL_SIZE = 12;
+
+    const PADDLE_SPEED = 6;             // pixels por frame
+    const BALL_SPEED_START = 5.0;        // velocidade inicial
+    const BALL_SPEED_MAX = 12.0;         // limite superior
+    const BALL_SPEED_STEP = 0.4;         // aceleração a cada batida
+    const WIN_SCORE = 10;                // fim de jogo
+
+    // ----- Estado do jogo -----
+    let leftPaddle, rightPaddle, ball;
+    let vx = 0, vy = 0; // velocidade da bola
+    let scoreL = 0, scoreR = 0;
+
+    // Estados: 'playing' | 'point' | 'gameover'
+    let state = 'playing';
+    let pointResumeAt = 0;  // millis quando o ponto deve reiniciar
+    let nextDirection = 1;  // para onde a próxima bola vai após ponto
+
+    function setup() {
+      const c = createCanvas(W, H);
+      c.parent(document.querySelector('.wrap'));
+      resetPaddles();
+      resetBall(random([1, -1]));
+      textFont('monospace');
+    }
+
+    function draw() {
+      background(18);
+
+      // Linha tracejada central
+      stroke(60,60,80);
+      strokeWeight(4);
+      for (let y = 0; y < H; y += 20) {
+        line(W/2, y, W/2, y+12);
+      }
+      noStroke();
+
+      // Entrada (sempre pode mover as raquetes)
+      if (keyIsDown(87)) leftPaddle.y -= PADDLE_SPEED;      // W
+      if (keyIsDown(83)) leftPaddle.y += PADDLE_SPEED;      // S
+      if (keyIsDown(UP_ARROW)) rightPaddle.y -= PADDLE_SPEED;
+      if (keyIsDown(DOWN_ARROW)) rightPaddle.y += PADDLE_SPEED;
+
+      leftPaddle.y  = constrain(leftPaddle.y, 0, H - PADDLE_H);
+      rightPaddle.y = constrain(rightPaddle.y, 0, H - PADDLE_H);
+
+      // Lógica por estado
+      if (state === 'playing') {
+        updateBallAndCollisions();
+      } else if (state === 'point') {
+        if (millis() >= pointResumeAt) {
+          state = 'playing';
+          resetBall(nextDirection);
+          hideOverlay();
+        }
+      } else if (state === 'gameover') {
+        // nada da bola se move; aguardando espaço
+      }
+
+      // Desenho das raquetes
+      fill(220,220,255);
+      rect(leftPaddle.x, leftPaddle.y, leftPaddle.w, leftPaddle.h, 2);
+      rect(rightPaddle.x, rightPaddle.y, rightPaddle.w, rightPaddle.h, 2);
+
+      // Desenho da bola somente quando jogando
+      if (state === 'playing') {
+        fill(255);
+        rect(ball.x, ball.y, BALL_SIZE, BALL_SIZE, 2);
+      }
+
+      // Placar
+      noStroke();
+      fill(255);
+      textSize(48);
+      textAlign(CENTER, TOP);
+      text(scoreL, W*0.25, 16);
+      text(scoreR, W*0.75, 16);
+
+      // Dica
+      textSize(16);
+      fill(180);
+      text('W/S e ↑/↓ para mover — R para reiniciar', W/2, H-24);
+    }
+
+    function keyPressed() {
+      if (key === 'r' || key === 'R') {
+        startNewGame();
+      }
+      if (state === 'gameover' && key === ' ') { // espaço
+        startNewGame();
+        hideOverlay();
+      }
+    }
+
+    // ----- Helpers -----
+    function startNewGame() {
+      scoreL = 0; scoreR = 0;
+      state = 'playing';
+      resetPaddles();
+      resetBall(random([1, -1]));
+    }
+
+    function resetPaddles() {
+      leftPaddle  = { x: 40, y: H/2 - PADDLE_H/2, w: PADDLE_W, h: PADDLE_H };
+      rightPaddle = { x: W - 40 - PADDLE_W, y: H/2 - PADDLE_H/2, w: PADDLE_W, h: PADDLE_H };
+    }
+
+    function resetBall(direction) {
+      const speed = BALL_SPEED_START;
+      const dy = random([0.5, 0.7, -0.5, -0.7]);
+      ball = { x: W/2 - BALL_SIZE/2, y: H/2 - BALL_SIZE/2, w: BALL_SIZE, h: BALL_SIZE };
+      vx = speed * direction;
+      vy = speed * dy;
+    }
+
+    function accelerate() {
+      const clamp = (v, lim) => (v > 0 ? min(v + BALL_SPEED_STEP, lim) : max(v - BALL_SPEED_STEP, -lim));
+      vx = clamp(vx, BALL_SPEED_MAX);
+      vy = clamp(vy, BALL_SPEED_MAX);
+    }
+
+    function addSpin(paddle) {
+      const paddleCenter = paddle.y + paddle.h/2;
+      const ballCenter = ball.y + BALL_SIZE/2;
+      const offset = (ballCenter - paddleCenter) / (PADDLE_H/2); // -1..1
+      vy += offset * 2.0; // ajuste suave
+    }
+
+    function rectOverlap(a, b) {
+      return (
+        a.x < b.x + b.w &&
+        a.x + a.w > b.x &&
+        a.y < b.y + b.h &&
+        a.y + a.h > b.y
+      );
+    }
+
+    function updateBallAndCollisions() {
+      // Movimento da bola
+      ball.x += vx; ball.y += vy;
+
+      // Colisão com topo/baixo
+      if (ball.y <= 0 && vy < 0) { ball.y = 0; vy = -vy; }
+      if (ball.y + BALL_SIZE >= H && vy > 0) { ball.y = H - BALL_SIZE; vy = -vy; }
+
+      // Colisão com raquete esquerda
+      if (rectOverlap(ball, leftPaddle) && vx < 0) {
+        ball.x = leftPaddle.x + PADDLE_W; // reposiciona
+        vx = -vx; addSpin(leftPaddle); accelerate();
+      }
+      // Colisão com raquete direita
+      if (rectOverlap(ball, rightPaddle) && vx > 0) {
+        ball.x = rightPaddle.x - BALL_SIZE;
+        vx = -vx; addSpin(rightPaddle); accelerate();
+      }
+
+      // Pontuação
+      if (ball.x + BALL_SIZE < 0) { // passou da esquerda -> ponto P2
+        scoreR++;
+        if (scoreR >= WIN_SCORE) return finishGame(2);
+        showPoint(2); // mostra overlay por 1s e prepara próxima bola -> direita
+      }
+      if (ball.x > W) { // passou da direita -> ponto P1
+        scoreL++;
+        if (scoreL >= WIN_SCORE) return finishGame(1);
+        showPoint(1); // prepara próxima bola -> esquerda
+      }
+    }
+
+    function showPoint(player) {
+      state = 'point';
+      nextDirection = player === 1 ? -1 : 1; // quem fez ponto saca contra o adversário
+      showOverlay(`PONTO PARA O PLAYER ${player}`);
+      pointResumeAt = millis() + 1000; // 1 segundo
+    }
+
+    function finishGame(winner) {
+      state = 'gameover';
+      showOverlay(`PLAYER ${winner} GANHOU!
+Pressione ESPAÇO para jogar novamente`);
+    }
+
+    // Overlay helpers
+    function showOverlay(text) {
+      const el = document.getElementById('overlay');
+      const t = document.getElementById('overlayText');
+      t.textContent = text;
+      el.style.display = 'flex';
+    }
+    function hideOverlay() {
+      document.getElementById('overlay').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
