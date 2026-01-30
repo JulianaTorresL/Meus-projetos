@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Snake</title>
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+  <style>
+    body { margin:0; background:#0b1510; color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    .wrap { display:flex; flex-direction:column; align-items:center; gap:8px; padding:16px; }
+    canvas { outline: 1px solid #1f3125; }
+    .hint { opacity:.85; font-size:14px; }
+    .overlay { position:absolute; inset:0; display:none; align-items:center; justify-content:center; text-align:center; pointer-events:none; }
+    .overlayText { white-space: pre-line; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Snake</h1>
+    <div class="hint">Setas para mover • Comer a maçã para crescer • Espaço reinicia quando acaba</div>
+  </div>
+  <div id="overlay" class="overlay"><div id="overlayText" class="overlayText" style="font-size:28px; line-height:1.6"></div></div>
+
+  <script>
+    // === JavaScript + p5.js ===
+    // Agora com fundo "florestinha" procedural (sem imagens), desenhado uma única vez em um buffer.
+
+    const COLS = 30;
+    const ROWS = 20;
+    const CELL = 24;
+    const W = COLS * CELL;
+    const H = ROWS * CELL;
+
+    const TICK_MS = 100; // 10 passos/seg
+
+    let snake;         // [{x,y}, ...] — cabeça é snake[0]
+    let dir;           // direção atual {x,y}
+    let nextDir;       // direção pendente
+    let food;          // {x,y}
+    let score;
+    let state;         // 'playing' | 'gameover'
+    let nextTickAt;    // millis do próximo passo
+
+    // Buffer do fundo (desenhamos 1x por performance)
+    let bgLayer;
+
+    function setup(){
+      const c = createCanvas(W, H);
+      c.parent(document.querySelector('.wrap'));
+      textFont('monospace');
+
+      // Prepara fundo tipo floresta
+      bgLayer = createGraphics(W, H);
+      noiseSeed(42);
+      generateForestBackground(bgLayer);
+
+      startNewGame();
+    }
+
+    function draw(){
+      // Desenha o fundo da floresta
+      image(bgLayer, 0, 0);
+
+      // grade leve por cima para ajudar a leitura da jogabilidade
+      stroke(26, 44, 32);
+      strokeWeight(1);
+      for (let x = 0; x <= W; x += CELL) line(x, 0, x, H);
+      for (let y = 0; y <= H; y += CELL) line(0, y, W, y);
+      noStroke();
+
+      // HUD
+      fill(235);
+      textSize(18);
+      textAlign(LEFT, TOP);
+      text(`Pontos: ${score}`, 8, 6);
+
+      // lógica por 'tick'
+      if (state === 'playing' && millis() >= nextTickAt) {
+        step();
+        nextTickAt = millis() + TICK_MS;
+      }
+
+      // comida (vermelho para contraste)
+      fill(220, 70, 70);
+      rect(food.x * CELL, food.y * CELL, CELL, CELL, 4);
+
+      // cobrinha em degradê verde (cabeça viva → cauda escura)
+      push();
+      colorMode(HSB, 360, 100, 100, 1);
+      for (let i = 0; i < snake.length; i++) {
+        const s = snake[i];
+        const t = (snake.length > 1) ? i / (snake.length - 1) : 0; // 0 cabeça
+        const hue = 120;      // verde
+        const sat = 80;       // saturação
+        const bri = lerp(95, 55, t); // brilho decresce
+        fill(hue, sat, bri);
+        rect(s.x * CELL, s.y * CELL, CELL, CELL, 4);
+      }
+      pop();
+    }
+
+    function keyPressed(){
+      // Troca de direção (evitar reversão imediata)
+      if (keyCode === UP_ARROW   && dir.y !== 1)  nextDir = {x:0, y:-1};
+      if (keyCode === DOWN_ARROW && dir.y !== -1) nextDir = {x:0, y: 1};
+      if (keyCode === LEFT_ARROW && dir.x !== 1)  nextDir = {x:-1, y: 0};
+      if (keyCode === RIGHT_ARROW&& dir.x !== -1) nextDir = {x: 1, y: 0};
+
+      if (state === 'gameover' && key === ' ') {
+        hideOverlay();
+        startNewGame();
+      }
+    }
+
+    // --- Lógica por passo ---
+    function step(){
+      if (nextDir) { dir = nextDir; nextDir = null; }
+
+      const head = snake[0];
+      const nx = head.x + dir.x;
+      const ny = head.y + dir.y;
+
+      // colisões
+      if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) return gameOver();
+      if (snake.some(seg => seg.x === nx && seg.y === ny)) return gameOver();
+
+      // move
+      snake.unshift({x:nx, y:ny});
+
+      // comeu?
+      if (nx === food.x && ny === food.y) {
+        score += 1;
+        placeFood();
+      } else {
+        snake.pop();
+      }
+    }
+
+    // --- Inicialização / utilitários ---
+    function startNewGame(){
+      score = 0;
+      state = 'playing';
+      dir = {x:1, y:0};
+      nextDir = null;
+      snake = [ {x:5, y:10}, {x:4, y:10}, {x:3, y:10} ];
+      placeFood();
+      nextTickAt = millis() + TICK_MS;
+    }
+
+    function placeFood(){
+      const empty = [];
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (!snake.some(s => s.x === x && s.y === y)) empty.push({x,y});
+        }
+      }
+      food = random(empty);
+    }
+
+    function gameOver(){
+      state = 'gameover';
+      showOverlay(`GAME OVER\nPontos: ${score}\nPressione ESPAÇO para jogar novamente`);
+    }
+
+    // overlay helpers
+    function showOverlay(text){
+      const el = document.getElementById('overlay');
+      const t = document.getElementById('overlayText');
+      t.textContent = text; // .overlayText { white-space: pre-line; }
+      el.style.display = 'flex';
+    }
+    function hideOverlay(){
+      document.getElementById('overlay').style.display = 'none';
+    }
+
+    // === Fundo procedural "florestinha" ===
+    function generateForestBackground(g){
+      g.push();
+      // Gradiente vertical (céu esverdeado)
+      const topC = g.color(20, 60, 40);
+      const botC = g.color(8, 28, 18);
+      for (let y = 0; y < H; y++) {
+        const t = y / H;
+        const c = lerpColor(topC, botC, t);
+        g.stroke(c);
+        g.line(0, y, W, y);
+      }
+
+      // Camadas de colinas com perlin noise
+      drawHillLayer(g, H*0.70, 60, 0.008, g.color(18, 50, 34, 180));
+      drawHillLayer(g, H*0.78, 50, 0.010, g.color(14, 44, 28, 200));
+      drawHillLayer(g, H*0.86, 40, 0.012, g.color(10, 36, 24, 220));
+
+      // Fileiras de árvores (mais claras à frente)
+      drawTreeRow(g, 24, H*0.66, 0.9, g.color(12, 28, 20, 220), g.color(30, 90, 50, 200));
+      drawTreeRow(g, 18, H*0.74, 1.1, g.color(16, 34, 24, 230), g.color(36, 110, 60, 220));
+      drawTreeRow(g, 12, H*0.82, 1.35, g.color(20, 40, 28, 255), g.color(42, 130, 70, 240));
+
+      // Gramínea frontal
+      g.stroke(36, 120, 70, 220);
+      for (let x = 0; x < W; x += 6) {
+        const h = 6 + (noise(x*0.05) * 10);
+        g.line(x, H-2, x, H-2 - h);
+      }
+      g.pop();
+    }
+
+    function drawHillLayer(g, baseY, amp, scale, col){
+      g.noStroke();
+      g.fill(col);
+      g.beginShape();
+      g.vertex(0, H);
+      for (let x = 0; x <= W; x += 8) {
+        const y = baseY + (noise(x*scale) - 0.5) * amp;
+        g.vertex(x, y);
+      }
+      g.vertex(W, H);
+      g.endShape(CLOSE);
+    }
+
+    function drawTreeRow(g, count, baseline, sizeK, trunkCol, leafCol){
+      for (let i = 0; i < count; i++) {
+        const x = map(i, 0, count-1, -20, W+20) + random(-10, 10);
+        const baseY = baseline + (noise(i*0.3) - 0.5) * 16;
+        const s = 18 * sizeK + random(-4, 6);
+        drawConifer(g, x, baseY, s, trunkCol, leafCol);
+      }
+    }
+
+    function drawConifer(g, x, baseY, s, trunkCol, leafCol){
+      // Tronco
+      g.noStroke();
+      g.fill(trunkCol);
+      g.rect(x - s*0.08, baseY - s*0.2, s*0.16, s*0.2);
+
+      // Copas em 3 triângulos (pinheiro estilizado)
+      g.fill(leafCol);
+      const levels = [ {w: s*0.9, h: s*0.35}, {w: s*0.7, h: s*0.33}, {w: s*0.5, h: s*0.30} ];
+      let yTop = baseY - s*0.2;
+      for (const L of levels) {
+        g.triangle(x - L.w/2, yTop, x + L.w/2, yTop, x, yTop - L.h);
+        yTop -= L.h * 0.8;
+      }
+    }
+  </script>
+</body>
+</html>
