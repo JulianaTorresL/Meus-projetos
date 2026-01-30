@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Taxa Metabólica Basal</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: white;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%);
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .calculator-form {
+            padding: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5ee;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #4b6cb7;
+            box-shadow: 0 0 0 3px rgba(75, 108, 183, 0.1);
+        }
+
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+        }
+
+        .sex-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .sex-button {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            border: 2px solid #e1e5ee;
+            border-radius: 10px;
+            background-color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .sex-button:hover {
+            background-color: #f8f9fa;
+        }
+
+        .sex-button.active {
+            background-color: #4b6cb7;
+            color: white;
+            border-color: #4b6cb7;
+        }
+
+        .calculate-btn {
+            background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            width: 100%;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .calculate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(75, 108, 183, 0.2);
+        }
+
+        .calculate-btn:active {
+            transform: translateY(0);
+        }
+
+        .result-container {
+            margin-top: 30px;
+            padding: 25px;
+            background-color: #f8f9fa;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+        }
+
+        .result-container.show {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-title {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .tmb-value {
+            font-size: 42px;
+            font-weight: 700;
+            color: #4b6cb7;
+            margin: 15px 0;
+        }
+
+        .tmb-unit {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .info-box {
+            background-color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border-left: 4px solid #4b6cb7;
+            text-align: left;
+        }
+
+        .info-box p {
+            color: #555;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .formula-info {
+            margin-top: 25px;
+            padding: 20px;
+            background-color: #f0f4ff;
+            border-radius: 10px;
+            font-size: 13px;
+            color: #555;
+            line-height: 1.5;
+        }
+
+        .formula-info h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 13px;
+            border-top: 1px solid #eee;
+        }
+
+        @media (max-width: 480px) {
+            .calculator-form {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 20px;
+            }
+            
+            .tmb-value {
+                font-size: 36px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Calculadora de Taxa Metabólica Basal</h1>
+            <p>Baseada nas fórmulas da Organização Mundial da Saúde</p>
+        </div>
+
+        <div class="calculator-form">
+            <div class="form-group">
+                <label for="idade">Idade (anos)</label>
+                <input type="number" id="idade" min="0" max="120" step="0.1" placeholder="Ex: 30" value="30">
+            </div>
+
+            <div class="form-group">
+                <label>Sexo</label>
+                <div class="sex-buttons">
+                    <div class="sex-button active" data-sex="M">Masculino</div>
+                    <div class="sex-button" data-sex="F">Feminino</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="peso">Peso (kg)</label>
+                <input type="number" id="peso" min="1" max="300" step="0.1" placeholder="Ex: 70" value="70">
+            </div>
+
+            <button class="calculate-btn" id="calcular">Calcular TMB</button>
+
+            <div class="result-container" id="resultado">
+                <div class="result-title">Sua Taxa Metabólica Basal é:</div>
+                <div class="tmb-value" id="tmb-valor">0</div>
+                <div class="tmb-unit">calorias por dia</div>
+                
+                <div class="info-box">
+                    <p>A TMB representa a quantidade mínima de calorias que seu corpo precisa para manter funções vitais em repouso completo (respiração, circulação, temperatura corporal, etc.).</p>
+                </div>
+            </div>
+
+            <div class="formula-info">
+                <h3>Fórmulas utilizadas (OMS):</h3>
+                <p><strong>Mulheres:</strong><br>
+                0-3 anos: (58,317 × peso) – 31,1<br>
+                3-10 anos: (20,315 × peso) + 485,9<br>
+                10-18 anos: (13,384 × peso) + 692,6<br>
+                18-30 anos: (14,818 × peso) + 486,6<br>
+                30-60 anos: (8,126 × peso) + 845,6<br>
+                ≥ 60 anos: (9,082 × peso) + 658,5</p>
+                
+                <p><strong>Homens:</strong><br>
+                0-3 anos: (59,512 × peso) – 30,4<br>
+                3-10 anos: (22,706 × peso) + 504,3<br>
+                10-18 anos: (17,686 × peso) + 658,2<br>
+                18-30 anos: (15,057 × peso) + 692,2<br>
+                30-60 anos: (11,472 × peso) + 873,1<br>
+                ≥ 60 anos: (11,711 × peso) + 587,7</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Esta calculadora fornece uma estimativa. Consulte um profissional de saúde para avaliação precisa.</p>
+        </div>
+    </div>
+
+    <script>
+        // Elementos da página
+        const idadeInput = document.getElementById('idade');
+        const pesoInput = document.getElementById('peso');
+        const sexButtons = document.querySelectorAll('.sex-button');
+        const calcularBtn = document.getElementById('calcular');
+        const resultadoDiv = document.getElementById('resultado');
+        const tmbValor = document.getElementById('tmb-valor');
+        
+        let sexoSelecionado = 'M';
+        
+        // Seleção do sexo
+        sexButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                sexButtons.forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+                sexoSelecionado = this.getAttribute('data-sex');
+            });
+        });
+        
+        // Função para calcular TMB
+        function calcularTMB(idade, sexo, peso) {
+            if (idade < 0 || peso <= 0) {
+                return null;
+            }
+            
+            // Cálculos para mulheres
+            if (sexo === 'F') {
+                if (0 <= idade && idade <= 3) {
+                    return (58.317 * peso) - 31.1;
+                } else if (idade > 3 && idade <= 10) {
+                    return (20.315 * peso) + 485.9;
+                } else if (idade > 10 && idade <= 18) {
+                    return (13.384 * peso) + 692.6;
+                } else if (idade > 18 && idade <= 30) {
+                    return (14.818 * peso) + 486.6;
+                } else if (idade > 30 && idade <= 60) {
+                    return (8.126 * peso) + 845.6;
+                } else { // idade > 60
+                    return (9.082 * peso) + 658.5;
+                }
+            }
+            // Cálculos para homens
+            else if (sexo === 'M') {
+                if (0 <= idade && idade <= 3) {
+                    return (59.512 * peso) - 30.4;
+                } else if (idade > 3 && idade <= 10) {
+                    return (22.706 * peso) + 504.3;
+                } else if (idade > 10 && idade <= 18) {
+                    return (17.686 * peso) + 658.2;
+                } else if (idade > 18 && idade <= 30) {
+                    return (15.057 * peso) + 692.2;
+                } else if (idade > 30 && idade <= 60) {
+                    return (11.472 * peso) + 873.1;
+                } else { // idade > 60
+                    return (11.711 * peso) + 587.7;
+                }
+            }
+            
+            return null;
+        }
+        
+        // Evento do botão calcular
+        calcularBtn.addEventListener('click', function() {
+            const idade = parseFloat(idadeInput.value);
+            const peso = parseFloat(pesoInput.value);
+            
+            // Validação
+            if (isNaN(idade) || isNaN(peso)) {
+                alert('Por favor, preencha todos os campos corretamente.');
+                return;
+            }
+            
+            if (idade < 0 || peso <= 0) {
+                alert('Por favor, insira valores válidos (idade ≥ 0, peso > 0).');
+                return;
+            }
+            
+            // Calcular TMB
+            const tmb = calcularTMB(idade, sexoSelecionado, peso);
+            
+            if (tmb !== null) {
+                // Exibir resultado
+                tmbValor.textContent = tmb.toFixed(1);
+                resultadoDiv.classList.add('show');
+                
+                // Rolagem suave para o resultado
+                resultadoDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                alert('Erro ao calcular a TMB. Verifique os valores inseridos.');
+            }
+        });
+        
+        // Permitir calcular pressionando Enter nos campos
+        [idadeInput, pesoInput].forEach(input => {
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    calcularBtn.click();
+                }
+            });
+        });
+        
+        // Calcular automaticamente quando a página carrega
+        window.addEventListener('load', function() {
+            calcularBtn.click();
+        });
+    </script>
+</body>
+</html>
